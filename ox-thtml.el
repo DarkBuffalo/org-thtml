@@ -1,4 +1,4 @@
-;;; ox-thtml.el --- Handlebar-style templates for org-mode
+;;; ox-thtml.el --- Handlebar-style templates for org-mode -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2019 Juan Jose Garcia Ripoll
 
@@ -27,7 +27,7 @@
 
 ;;; Commentary:
 
-;; ox-html.el is an HTML templating system for Emacs and Org mode.
+;; ox-thtml.el is an HTML templating system for Emacs and Org mode.
 ;; See the README file for details and instructions.
 
 ;;; Code:
@@ -35,7 +35,7 @@
 ;; We ensure the org infrastructure
 (require 'org)
 ;; We need this for LOOP
-(require 'cl)
+(require 'cl-lib)
 
 (defvar templated-html-version "0.3"
   "Version number for the templated-html library")
@@ -160,9 +160,9 @@ statements. It reads the HTML until a handleblar expression
 {{form}} is found. Text in between expressions is inserted as is
 into the template. Forms {{a b c ...}} are interpreted as lisp
 expressions (a b c ...) except when they consist of just one
-element {{a}} which is read as-is. Special forms where 'a' is one
+element {{a}} which is read as-is. Special forms where `a' is one
 of :if, :each, :include are delegated to helper functions."
-  (loop with forms = nil
+  (cl-loop with forms = nil
         with head = nil
         for item = (print (templated-html--read-form))
         while (not (or (eq item ':eof)
@@ -172,7 +172,7 @@ of :if, :each, :include are delegated to helper functions."
                   ;; Maybe transcode characters to HTML entities?
                   (push item forms))
                  ((setq head (assoc (car item) templated-html-helper-alist))
-                  (push (funcall (cdr head) (rest item)) forms))
+                  (push (funcall (cdr head) (cdr item)) forms))
                  (t
                   (push item forms)))
         finally return `(concat ,@(nreverse forms))))
@@ -200,11 +200,19 @@ string, or an s-expression enclosed in a handlerbar {{form}}."
                (buffer-substring beg (- (point) 2))
              (buffer-substring beg (point-max)))))))
 
+;; (defun templated-html--relative-path (input-file base)
+;;   (apply 'concatenate 'string
+;;            (cl-loop for i in (cdr (split-string (file-relative-name input-file base)
+;;                                         "[/\\]"))
+;;                     collect "../")))
+
 (defun templated-html--relative-path (input-file base)
-  (apply 'concatenate 'string
-           (loop for i in (rest (split-string (file-relative-name input-file base)
-                                        "[/\\]"))
-                 collect "../")))
+  (concat
+   (mapconcat (lambda (_) "../")
+              (cdr (split-string (file-relative-name input-file base)
+                                 "[/\\]"))
+              "")))
+
 
 (defun templated-html--absolute-path (input-file real-root &optional ext)
   (let ((file-name (concat "/" (file-relative-name input-file real-root))))
@@ -228,7 +236,7 @@ string, or an s-expression enclosed in a handlerbar {{form}}."
 (defun templated-html--each (form)
   "Handler for {{:each list}}...{{:endeach}} blocks."
   `(apply 'concat
-          (loop for item in ,(car form)
+          (cl-loop for item in ,(car form)
                 collect ,(templated-html--read-block :endeach))))
 
 (defun templated-html-map-files (project-name function)
@@ -286,16 +294,16 @@ If it is not NIL, it is used to sort the posts according to the given order."
     (when sort
       (cond ((eq sort :newer)
              (setq sort (lambda (p1 p2)
-                          (<= (plist p1 :date)
-                              (plist p2 :date)))))
+                          (<= (plist-get p1 :date)
+                              (plist-get p2 :date)))))
             ((eq sort :older)
              (setq sort (lambda (p1 p2)
-                          (<= (plist p1 :date)
-                              (plist p2 :date)))))
+                          (<= (plist-get p1 :date)
+                              (plist-get p2 :date)))))
             ((eq sort :title)
              (setq sort (lambda (p1 p2)
-                          (string< (plist p1 :title)
-                                   (plist p2 :title))))))
+                          (string< (plist-get p1 :title)
+                                   (plist-get p2 :title))))))
       (setq posts (sort posts sort)))
     posts))
 
@@ -351,7 +359,7 @@ representation for the files to include, as returned by
 
 (defun org-simple-rss--entry (entry style project)
   "Format ENTRY for the RSS feed.
-ENTRY is a file name.  STYLE is either 'list' or 'tree'.
+ENTRY is a file name.  STYLE is either  `list' or `tree'.
 PROJECT is the current project."
   (message "org-publish-entry %s" entry)
   (cond ((not (directory-name-p entry))
@@ -405,8 +413,9 @@ PROJECT is the current project."
       xsi:schemaLocation=\"
             http://www.sitemaps.org/schemas/sitemap/0.9
             http://www.sitemaps.org/schemas/sitemap/09/sitemap.xsd\">\n")
-      (loop for file in (directory-files-recursively directory rx)
+      (cl-loop for file in (directory-files-recursively directory rx)
             do (insert (format "<url>\n <loc>%s/%s</loc>\n <priority>0.5</priority>\n</url>\n"
                                base-url (file-relative-name file directory))))
       (insert "</urlset>"))))
+(provide 'ox-thtml)
 ;;; ox-thtml.el ends here
